@@ -409,7 +409,7 @@ class Board(Drawable):
             self.draw()
             self.draw_players_info()
             action, x = self.current_player.AI.move()
-            pygame.mixer.music.load('./sound/chime.ogg')
+            pygame.mixer.music.load('./engine/sound/chime.ogg')
             pygame.mixer.music.play()
             self.do_action(action)
 
