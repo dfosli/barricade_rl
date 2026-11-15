@@ -1,1 +1,3 @@
-pygame==1.9.6
+pygame>=2.5
+numpy>=1.24
+torch>=2.0  # for model.py / train.py (install the CUDA build from pytorch.org if you have a GPU)

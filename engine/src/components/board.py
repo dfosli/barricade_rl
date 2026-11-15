@@ -28,9 +28,19 @@ class Board(Drawable):
                  cell_padding=cfg.CELL_PAD,
                  color=cfg.BOARD_BG_COLOR,
                  border_color=cfg.BOARD_BRD_COLOR,
-                 border_size=cfg.BOARD_BRD_SIZE):
-
+                 border_size=cfg.BOARD_BRD_SIZE,
+                 ai_players=(1,),
+                 ai_level=None,
+                 headless=False):
+        """
+        ai_players: indices of the pawns moved by the built-in A.I. (0 = red/bottom, 1 = blue/top).
+        ai_level:   search depth of the built-in A.I. (defaults to cfg.LEVEL).
+        headless:   if True nothing is ever drawn (used for fast simulation / RL training).
+        """
         Drawable.__init__(self, screen=screen, color=color, border_color=border_color, border_size=border_size)
+        self.headless = headless
+        self.aborted = False  # Set by abort() when the game is left before it ends
+        self._state = None
         self.rows: int = rows
         self.cols: int = cols
         self.cell_pad = cell_padding
@@ -38,7 +48,6 @@ class Board(Drawable):
         self.player: int = 0  # Current player 0 or 1
         self.board: List[List[Cell]] = []
         self.computing = False  # True if a non-human player is moving
-        self._state = None
 
         for i in range(rows):
             self.board.append([])
@@ -63,10 +72,27 @@ class Board(Drawable):
         self.regenerate_board(cfg.CELL_COLOR, cfg.CELL_BORDER_COLOR)
         self.num_players = cfg.DEFAULT_NUM_PLAYERS
         self.walls: Set[Wall] = set()  # Walls placed on board
+        self._state = None  # The state cached while creating the pawns is incomplete
         self.draw_players_info()
-        self._AI = []
-        # self._AI += [AI(self.pawns[0])]
-        self._AI += [AI(self.pawns[1], level=cfg.LEVEL)]
+        level = cfg.LEVEL if ai_level is None else ai_level
+        self._AI = [AI(self.pawns[i], level=level) for i in ai_players]
+
+    def abort(self) -> None:
+        """ Stops this game: an A.I. thread still thinking finishes its search silently
+        (nothing is drawn anymore) and makes no further moves.
+        """
+        self.aborted = True
+        self.headless = True
+
+    @property
+    def player(self) -> int:
+        """ Index of the player to move """
+        return self._player
+
+    @player.setter
+    def player(self, value: int) -> None:
+        self._player = value
+        self._state = None  # The serialized state starts with the current player
 
     def regenerate_board(self, c_color, cb_color, c_width=cfg.CELL_WIDTH, c_height=cfg.CELL_HEIGHT):
         """ Regenerate board colors and get_cell positions.
@@ -94,6 +120,9 @@ class Board(Drawable):
         """ Draws a squared n x n board, defaults
         to the standard 9 x 9
         """
+        if self.headless:
+            return
+
         super().draw()
 
         for row in self:
@@ -336,6 +365,9 @@ class Board(Drawable):
     def draw_player_info(self, player_num):
         """ Draws player pawn at board + padding_offset
         """
+        if self.headless:
+            return
+
         pawn = self.pawns[player_num]
         r = pawn.rect
         r.x = self.rect.x + self.rect.width + cfg.PAWN_PADDING
@@ -373,7 +405,7 @@ class Board(Drawable):
             self.msg(r.x + cfg.PAWN_PADDING, r.y, "PLAYER %i WINS!" % (1 + self.player))
             x = self.rect.x
             y = self.rect.y + self.rect.height + cfg.PAWN_PADDING
-            self.msg(x, y, "Press any key to EXIT")
+            self.msg(x, y, "Press any key or click to return to the menu")
 
     def msg(self, x, y, str_, color=cfg.FONT_COLOR, fsize=cfg.FONT_SIZE):
         font = pygame.font.SysFont(None, fsize)
@@ -405,12 +437,18 @@ class Board(Drawable):
     def computer_move(self):
         """ Performs computer moves for every non-human player
         """
-        while self.current_player.AI and not self.finished:
+        while self.current_player.AI and not self.finished and not self.aborted:
             self.draw()
             self.draw_players_info()
             action, x = self.current_player.AI.move()
-            pygame.mixer.music.load('./engine/sound/chime.ogg')
-            pygame.mixer.music.play()
+            if self.aborted:
+                break
+            if not self.headless:
+                try:
+                    pygame.mixer.music.load(cfg.SOUND_MOVE)
+                    pygame.mixer.music.play()
+                except pygame.error:
+                    pass  # No audio device / file: play silently
             self.do_action(action)
 
             if self.finished:

@@ -101,8 +101,16 @@ LEVEL = 0
 # Infinite
 INF = 99
 
+# Highest A.I. level selectable from the menu (search cost grows ~100x per level)
+MAX_LEVEL = 4
+
+# Paths are relative to the engine folder, so the game works from any working directory
+ENGINE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SOUND_MOVE = os.path.join(ENGINE_DIR, 'sound', 'chime.ogg')
+
 # Cache
 CACHE_ENABLED = False
-CACHE_DIR = './__cache'
-CACHE_AI_FNAME = os.path.join(CACHE_DIR, 'ai.memo')
+CACHE_DIR = os.path.join(ENGINE_DIR, '__cache')
+# v2: caches written before the board-state fix (ai.memo) contain wrong entries, so they are not reused
+CACHE_AI_FNAME = os.path.join(CACHE_DIR, 'ai_v2.memo')
 CACHE_DIST_FNAME = os.path.join(CACHE_DIR, 'dist.memo')

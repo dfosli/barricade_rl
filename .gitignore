@@ -1,3 +1,5 @@
 __pycache__/
 .venv/
 network/
+__cache/
+rl-program/checkpoints/

@@ -35,7 +35,8 @@ class AI:
         if not player.walls:  # Out of walls?
             return result
 
-        k = self.board.state[1 + 4 * len(self.board.pawns):]
+        # Wall legality depends on the walls AND on where the pawns are (reachability check)
+        k = ''.join(p.state[:2] for p in self.board.pawns) + self.board.state[1 + 4 * len(self.board.pawns):]
         try:
             return result + core.MEMOIZED_WALLS[k]
         except KeyError:

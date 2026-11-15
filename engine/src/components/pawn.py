@@ -91,6 +91,9 @@ class Pawn(Drawable):
         Returns te list of new coordinates the pawn can move by going into that direction, or None otherwise.
         Usually it's just one coordinate or empty (not possible), but sometimes it can be two coordinates if the
         pawn can move diaginally by jumping a confronting opponent.
+
+        Jump rule: over an adjacent opponent you jump straight on. Only if that is impossible (a wall or
+        the board edge directly behind the opponent) may you land on either side of it (L-shaped move).
         """
         assert self.cell is not None, "Cell({}, {}) is uninitialized".format(self.coord.row, self.coord.col)
 
@@ -104,14 +107,22 @@ class Pawn(Drawable):
         if self.board.get_cell(new_coord).pawn is None:  # Is it free?
             return [new_coord]
 
-        # Ok there's a pawn at I, J. Check for adjacent
+        # Ok there's a pawn at I, J: try to jump straight over it first
+        opp_cell = self.board.get_cell(new_coord)
+        if opp_cell.path[direction]:
+            straight = new_coord + cfg.DIRS_DELTA[direction]
+            if self.board.in_range(straight):
+                # Straight jump possible: no sideways (L-shaped) jumps allowed
+                return [straight] if self.board.get_cell(straight).pawn is None else []
+
+        # Wall / board edge behind the opponent: land on either side of it
         result = []
 
-        for di in cfg.DIRS:  # Check for any direction
-            if di == cfg.OPPOSITE_DIRS[direction]:
+        for di in cfg.DIRS:  # Check the two perpendicular directions
+            if di in (direction, cfg.OPPOSITE_DIRS[direction]):
                 continue
 
-            if self.board.get_cell(new_coord).path[di]:
+            if opp_cell.path[di]:
                 new_coord2 = new_coord + cfg.DIRS_DELTA[di]
                 if not self.board.in_range(new_coord2):
                     continue
@@ -160,6 +171,7 @@ class Pawn(Drawable):
         if self.board.in_range(coord):
             self._coord = coord
             self.cell = self.board.get_cell(self.coord)
+            self.board._state = None  # Pawn positions are part of the serialized board state
 
     def can_reach_goal(self, board=None) -> bool:
         """ True if this player can reach a goal,
