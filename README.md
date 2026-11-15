@@ -1,6 +1,7 @@
 # Barricade RL
 
 Training reinforcement learning (RL) agents to play **Quoridor**, also known as **Barricade**.
+Programmed with Pytorch.
 
 Each player races a pawn to the opposite side of a 9x9 board. On every turn you either move your
 pawn or place a wall to lengthen your opponent's path, but you may never block it completely.
