@@ -115,17 +115,15 @@ class DistArray(CellArray):
         self.pawn.cell = cell
 
     def draw(self):
-        """ Displays distance numbers in the screen
+        """ Displays distance numbers in the corner of every cell (debug mode).
+        Called by Board.draw right after the cells were painted, so nothing needs erasing.
         """
         for i in range(self.rows):
             for j in range(self.cols):
                 r = self.board[i][j].rect
-                r.x = r.x + r.width - cfg.FONT_SIZE
-                r.y = r.y + r.height - cfg.FONT_SIZE
-                r.width = cfg.FONT_SIZE
-                r.height = cfg.FONT_SIZE
-                pygame.draw.rect(self.pawn.screen, cfg.FONT_BG_COLOR, r, 0)  # Erases previous number
-                self.board.msg(r.x, r.y, str(self.array[i][j]))
+                d = self.array[i][j]
+                text = '-' if d >= cfg.INF else str(d)
+                self.board.msg(r.right - 4, r.bottom - 3, text, cfg.DEBUG_TEXT_COLOR, 18, anchor='bottomright')
 
     def push_state(self):
         self.stack.append(self.array)

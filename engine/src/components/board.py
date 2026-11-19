@@ -39,6 +39,8 @@ class Board(Drawable):
         """
         Drawable.__init__(self, screen=screen, color=color, border_color=border_color, border_size=border_size)
         self.headless = headless
+        self.player_labels = None  # e.g. ['Human', 'Built-in AI'], shown on the player cards
+        self.highlighted = set()   # cells outlined as legal moves for a human player
         self.aborted = False  # Set by abort() when the game is left before it ends
         self._state = None
         self.rows: int = rows
@@ -99,9 +101,9 @@ class Board(Drawable):
         Must be called on initialization or whenever a screen attribute
         changes (eg. color, board size, etc)
         """
-        y = self.cell_pad
+        y = cfg.BOARD_MARGIN + self.cell_pad
         for i in range(self.rows):
-            x = self.cell_pad
+            x = cfg.BOARD_MARGIN + self.cell_pad
             for j in range(self.cols):
                 cell = self.board[i][j]
                 cell.x, cell.y = x, y
@@ -123,11 +125,25 @@ class Board(Drawable):
         if self.headless:
             return
 
-        super().draw()
+        human_turn = not self.finished and not self.computing and not self.current_player.AI
+        self.highlighted = set(self.current_player.valid_moves) if human_turn else set()
+
+        pygame.draw.rect(self.screen, cfg.BG_COLOR, self.panel_rect.inflate(4, 4))
+        pygame.draw.rect(self.screen, cfg.PANEL_COLOR, self.panel_rect, border_radius=cfg.BOARD_RADIUS)
 
         for row in self:
             for cell in row:
                 cell.draw()
+
+        # Coordinates like a chess board: columns a-i, rows 1-9 counted from red's side (bottom)
+        label_y = self.board[-1][0].rect.bottom + (self.cell_pad + cfg.LABEL_SPACE) // 2
+        label_x = self.board[0][-1].rect.right + (self.cell_pad + cfg.LABEL_SPACE) // 2
+        for j in range(self.cols):
+            self.msg(self.board[0][j].rect.centerx, label_y, 'abcdefghijklmnopqrstuvwxyz'[j],
+                     cfg.LABEL_COLOR, 22, anchor='center')
+        for i in range(self.rows):
+            self.msg(label_x, self.board[i][0].rect.centery, str(self.rows - i), cfg.LABEL_COLOR, 22,
+                     anchor='center')
 
         if cfg.__DEBUG__:
             for p in self.pawns:
@@ -137,6 +153,13 @@ class Board(Drawable):
 
         for wall in self.walls:
             wall.draw()
+
+    @property
+    def panel_rect(self) -> pygame.Rect:
+        """ The rounded board panel: cells + gaps + room for the coordinate labels """
+        w = self.cols * (cfg.CELL_WIDTH + self.cell_pad) + self.cell_pad + cfg.LABEL_SPACE
+        h = self.rows * (cfg.CELL_HEIGHT + self.cell_pad) + self.cell_pad + cfg.LABEL_SPACE
+        return pygame.Rect(cfg.BOARD_MARGIN, cfg.BOARD_MARGIN, w, h)
 
     def get_cell(self, coord: Coord) -> Cell:
         """ Returns board get_cell at the given the coord
@@ -206,13 +229,10 @@ class Board(Drawable):
 
             self.do_action(ActionMovePawn(pawn.coord, cell.coord))
             cell.set_focus(False)
+
+            if not self.finished:
+                self.next_player()
             self.draw()
-
-            if self.finished:
-                self.draw_player_info(self.player)
-                return
-
-            self.next_player()
             self.draw_players_info()
             return
 
@@ -222,7 +242,9 @@ class Board(Drawable):
 
         if self.can_put_wall(wall):
             self.do_action(ActionPlaceWall(wall))
+            self.mouse_wall = None
             self.next_player()
+            self.draw()
             self.draw_players_info()
 
     def onMouseMotion(self, x, y):
@@ -301,7 +323,7 @@ class Board(Drawable):
         if i > 7 or j > 7:
             return None
 
-        return self.new_wall(Coord(i, j), horiz, cell.wall_color)
+        return self.new_wall(Coord(i, j), horiz, cfg.WALL_PREVIEW_COLORS[self.player])
 
     def new_wall(self, coord: Coord, horiz: bool, color: pygame.Color = None) -> Wall:
         """ Wall factory. Creates a new wall
@@ -362,55 +384,97 @@ class Board(Drawable):
         """
         return self.pawns[self.player]
 
+    # ------------------------------------------------------------------ side panel
+    CARD_HEIGHT = 128
+
+    def _card_rect(self, player_num: int) -> pygame.Rect:
+        x = self.panel_rect.right + cfg.SIDE_PANEL_GAP
+        w = self.screen.get_width() - x - cfg.BOARD_MARGIN
+        y = cfg.BOARD_MARGIN + player_num * (self.CARD_HEIGHT + cfg.BOARD_MARGIN)
+        return pygame.Rect(x, y, w, self.CARD_HEIGHT)
+
     def draw_player_info(self, player_num):
-        """ Draws player pawn at board + padding_offset
-        """
+        """ Draws the card of one player: color, who controls it, walls left, status """
         if self.headless:
             return
 
         pawn = self.pawns[player_num]
-        r = pawn.rect
-        r.x = self.rect.x + self.rect.width + cfg.PAWN_PADDING
-        r.y = (player_num + 1) * (r.height + cfg.PAWN_PADDING)
-        if self.current_player is pawn:
-            pygame.draw.rect(self.screen, cfg.CELL_VALID_COLOR, r, 0)
-            pygame.draw.rect(self.screen, pawn.border_color, r, 2)
+        card = self._card_rect(player_num)
+        color = cfg.PAWN_COLORS[player_num]
+        winner = self.finished and pawn.coord in pawn.goals
+        active = not self.finished and self.player == player_num
+        thinking = active and self.computing and pawn.percent is not None
+
+        pygame.draw.rect(self.screen, cfg.BG_COLOR, card.inflate(6, 6))
+        pygame.draw.rect(self.screen, cfg.PANEL_COLOR, card, border_radius=14)
+        if winner:
+            pygame.draw.rect(self.screen, color, card, width=3, border_radius=14)
+        elif active:
+            pygame.draw.rect(self.screen, cfg.FOCUS_COLOR, card, width=2, border_radius=14)
+
+        # Header: disc, name, controller ("Human", "Built-in AI", "RL: mlp", ...)
+        pygame.draw.circle(self.screen, color, (card.x + 32, card.y + 36), 14)
+        self.msg(card.x + 58, card.y + 18, cfg.PLAYER_NAMES[player_num], cfg.TEXT_COLOR, 32)
+        if self.player_labels:
+            self.msg(card.x + 58, card.y + 44, self.player_labels[player_num], cfg.MUTED_TEXT_COLOR, 20)
+
+        if winner:
+            status, status_color = 'wins!', color
+        elif thinking:
+            status, status_color = 'thinking %2.0f%%' % (100 * pawn.percent), cfg.MUTED_TEXT_COLOR
+        elif active:
+            status, status_color = 'to move', cfg.TEXT_COLOR
         else:
-            pygame.draw.rect(self.screen, self.color, r, 0)
+            status, status_color = '', cfg.TEXT_COLOR
+        if status:
+            self.msg(card.right - 16, card.y + 22, status, status_color, 22, anchor='topright')
 
-        pawn.draw(r)
-        rect = pygame.Rect(r.x + 1, r.y + r.h + 3, cfg.GAUGE_WIDTH, cfg.GAUGE_HEIGHT)
+        # Walls left: one small bar per wall, in the player's wall color
+        self.msg(card.x + 16, card.y + 88, 'Walls', cfg.MUTED_TEXT_COLOR, 20, anchor='midleft')
+        bar_x = card.x + 70
+        for k in range(cfg.NUM_WALLS):
+            c = cfg.WALL_COLORS[player_num] if k < pawn.walls else cfg.WALL_USED_COLOR
+            pygame.draw.rect(self.screen, c, (bar_x + k * 14, card.y + 77, 7, 22), border_radius=3)
+        self.msg(card.right - 16, card.y + 88, str(pawn.walls), cfg.TEXT_COLOR, 26, anchor='midright')
 
-        if pawn.percent is not None:
-            pygame.draw.rect(self.screen, cfg.FONT_BG_COLOR, rect, 0)  # Erases old gauge bar
-            rect.width = int(cfg.GAUGE_WIDTH * pawn.percent)
-            pygame.draw.rect(self.screen, cfg.GAUGE_COLOR, rect, 0)
-            rect.width = cfg.GAUGE_WIDTH
-            pygame.draw.rect(self.screen, cfg.GAUGE_BORDER_COLOR, rect, 1)
+        # Thin progress bar while the A.I. is thinking
+        if thinking:
+            bar = pygame.Rect(card.x + 16, card.bottom - 14, card.width - 32, 4)
+            pygame.draw.rect(self.screen, cfg.WALL_USED_COLOR, bar, border_radius=2)
+            bar.width = int(bar.width * pawn.percent)
+            pygame.draw.rect(self.screen, color, bar, border_radius=2)
+
+        self.draw_footer()
+
+    def draw_footer(self):
+        """ Text under the player cards: help while playing, the result when finished """
+        if self.headless:
+            return
+        first = self._card_rect(0)
+        top = self._card_rect(1).bottom + cfg.BOARD_MARGIN
+        area = pygame.Rect(first.x - 3, top, first.width + 6, self.screen.get_height() - top)
+        pygame.draw.rect(self.screen, cfg.BG_COLOR, area)
+        x, y = first.x + 4, top + 12
+        if self.finished:
+            winner = next(i for i, p in enumerate(self.pawns) if p.coord in p.goals)
+            self.msg(x, y, '%s wins!' % cfg.PLAYER_NAMES[winner], cfg.PAWN_COLORS[winner], 44)
+            self.msg(x, y + 48, 'Press any key or click', cfg.MUTED_TEXT_COLOR, 22)
+            self.msg(x, y + 70, 'to return to the menu', cfg.MUTED_TEXT_COLOR, 22)
         else:
-            pygame.draw.rect(self.screen, cfg.FONT_BG_COLOR, rect, 0)
+            for k, line in enumerate(('Click an outlined square to move.',
+                                      'Click between squares to place a wall.',
+                                      'ESC: back to the menu')):
+                self.msg(x, y + 24 * k, line, cfg.MUTED_TEXT_COLOR, 20)
 
-        r.x += r.width + 20
-        r.width = 6
-        pygame.draw.rect(self.screen, cfg.WALL_COLOR, r, 0)
+    _fonts = {}
 
-        r.x += r.width * 2 + 10
-        r.y += r.height // 2 - 5
-        r.height = cfg.FONT_SIZE
-        r.width *= 3
-        pygame.draw.rect(self.screen, cfg.FONT_BG_COLOR, r, 0)  # Erases previous number
-        self.msg(r.x, r.y, str(pawn.walls))
-
-        if self.finished and self.current_player == pawn:
-            self.msg(r.x + cfg.PAWN_PADDING, r.y, "PLAYER %i WINS!" % (1 + self.player))
-            x = self.rect.x
-            y = self.rect.y + self.rect.height + cfg.PAWN_PADDING
-            self.msg(x, y, "Press any key or click to return to the menu")
-
-    def msg(self, x, y, str_, color=cfg.FONT_COLOR, fsize=cfg.FONT_SIZE):
-        font = pygame.font.SysFont(None, fsize)
-        fnt = font.render(str_, True, color)
-        self.screen.blit(fnt, (x, y))
+    def msg(self, x, y, str_, color=cfg.TEXT_COLOR, fsize=cfg.FONT_SIZE, anchor='topleft'):
+        """ Draws text; (x, y) is the point given by ``anchor`` ('topleft', 'center', 'midright', ...) """
+        font = Board._fonts.get(fsize)
+        if font is None:
+            font = Board._fonts[fsize] = pygame.font.Font(None, fsize)
+        surf = font.render(str_, True, color)
+        self.screen.blit(surf, surf.get_rect(**{anchor: (x, y)}))
 
     def draw_players_info(self):
         """ Calls the above function for every player.
@@ -427,12 +491,29 @@ class Board(Drawable):
         if isinstance(action, ActionPlaceWall):
             wdir = 'horizontal' if action.horiz else 'vertical'
             log('Player %i places %s wall at (%i, %i)' % (player_id, wdir, action.coord.col, action.coord.row))
-            self.putWall(self.new_wall(action.coord, action.horiz))
+            self.putWall(self.new_wall(action.coord, action.horiz, cfg.WALL_COLORS[self.player]))
             self.current_player.walls -= 1
         else:
             log('Player %i moves to (%i, %i)' % (player_id, action.dest.row, action.dest.col))
             self.current_player.move_to(action.dest)
             self._state = None
+        self.play_move_sound()
+
+    _move_sound = None  # loaded once, shared by all boards
+
+    def play_move_sound(self):
+        """ Short wooden click on every move or wall, for humans and A.I.s alike (silent when headless) """
+        if self.headless:
+            return
+        try:
+            if Board._move_sound is None:
+                if not pygame.mixer.get_init():
+                    pygame.mixer.init()
+                Board._move_sound = pygame.mixer.Sound(cfg.SOUND_MOVE)
+                Board._move_sound.set_volume(cfg.SOUND_VOLUME)
+            Board._move_sound.play()
+        except pygame.error:
+            pass  # No audio device / file: play silently
 
     def computer_move(self):
         """ Performs computer moves for every non-human player
@@ -443,12 +524,6 @@ class Board(Drawable):
             action, x = self.current_player.AI.move()
             if self.aborted:
                 break
-            if not self.headless:
-                try:
-                    pygame.mixer.music.load(cfg.SOUND_MOVE)
-                    pygame.mixer.music.play()
-                except pygame.error:
-                    pass  # No audio device / file: play silently
             self.do_action(action)
 
             if self.finished:
@@ -456,9 +531,9 @@ class Board(Drawable):
 
             self.next_player()
 
+        self.computing = False  # before drawing, so a human's legal moves get outlined
         self.draw()
         self.draw_players_info()
-        self.computing = False
 
     @property
     def finished(self):

@@ -100,15 +100,11 @@ def point_in_rect(point: Tuple[int, int], rect: pygame.Rect) -> bool:
     return rect.left <= x <= rect.right and rect.top <= y <= rect.bottom
 
 
-def _gradient_background(size: Tuple[int, int]) -> pygame.Surface:
-    """ Soft vertical gradient (light warm -> light wood), computed once """
-    w, h = size
-    top, bottom = Color(245, 238, 230), Color(225, 200, 170)
+def _menu_background(size: Tuple[int, int], panel: pygame.Rect) -> pygame.Surface:
+    """ Dark background with a rounded panel behind the settings, computed once """
     bg = pygame.Surface(size)
-    for y in range(h):
-        t = y / float(h - 1)
-        c = [int(a * (1 - t) + b * t) for a, b in zip((top.r, top.g, top.b), (bottom.r, bottom.g, bottom.b))]
-        pygame.draw.line(bg, c, (0, y), (w, y))
+    bg.fill(cfg.BG_COLOR)
+    pygame.draw.rect(bg, cfg.PANEL_COLOR, panel, border_radius=cfg.BOARD_RADIUS)
     return bg
 
 
@@ -122,7 +118,6 @@ def show_welcome_screen(screen: pygame.Surface, player_options: List[str],
     settings.players = [p if p in player_options else HUMAN for p in settings.players]
     screen_w, screen_h = screen.get_size()
     cx = screen_w // 2
-    background = _gradient_background((screen_w, screen_h))
 
     title_font = pygame.font.Font(None, 72)
     subtitle_font = pygame.font.Font(None, 28)
@@ -130,14 +125,14 @@ def show_welcome_screen(screen: pygame.Surface, player_options: List[str],
     hint_font = pygame.font.Font(None, 20)
     btn_font = pygame.font.Font(None, 28)
 
-    dark = Color(40, 30, 20)
-    soft = Color(90, 75, 60)
-    border = Color(80, 60, 50)
-    white = Color(255, 255, 255)
-    wood, wood_hover = Color(160, 110, 60), Color(185, 135, 80)
-    on_col, on_hover = Color(90, 160, 120), Color(115, 190, 145)
-    off_col, off_hover = Color(150, 135, 120), Color(175, 160, 145)
-    exit_col, exit_hover = Color(180, 80, 70), Color(205, 110, 100)
+    dark = cfg.TEXT_COLOR              # main text
+    soft = cfg.MUTED_TEXT_COLOR        # hints
+    border = Color(70, 70, 74)
+    white = Color(245, 245, 245)
+    wood, wood_hover = cfg.CELL_COLOR, cfg.CELL_HOVER_COLOR       # neutral controls
+    on_col, on_hover = cfg.PAWN_COLORS[1], Color(96, 155, 250)    # "On" and Start: blue
+    off_col, off_hover = cfg.CELL_COLOR, cfg.CELL_HOVER_COLOR
+    exit_col, exit_hover = cfg.PAWN_COLORS[0], Color(245, 110, 110)
 
     title_surf = title_font.render('Welcome to Quoridor', True, dark).convert_alpha()
     subtitle_surf = subtitle_font.render('Choose your settings and press Start', True, soft).convert_alpha()
@@ -158,6 +153,7 @@ def show_welcome_screen(screen: pygame.Surface, player_options: List[str],
     btn_w, btn_h, gap = 180, 48, 24
     start_rect = pygame.Rect(cx - btn_w - gap // 2, 500, btn_w, btn_h)
     exit_rect = pygame.Rect(cx + gap // 2, 500, btn_w, btn_h)
+    background = _menu_background((screen_w, screen_h), pygame.Rect(cx - 300, 158, 600, 314))
 
     def label(text: str, y: int, hint: str = None):
         surf = label_font.render(text, True, dark)
@@ -188,6 +184,7 @@ def show_welcome_screen(screen: pygame.Surface, player_options: List[str],
         uses_ai = BUILTIN_AI in settings.players
         for i in range(2):
             label(PLAYER_LABELS[i], row_y[i], 'click to change (right-click: back)')
+            pygame.draw.circle(screen, cfg.PAWN_COLORS[i], (label_x - 18, row_y[i] + ctrl_h // 2 - 7), 8)
             text = fit_text('< %s >' % settings.players[i], btn_font, ctrl_w - 16)
             draw_rounded_button(screen, player_rects[i], text, btn_font,
                                 wood, wood_hover, border, player_rects[i].collidepoint(mouse), white, radius=8)
@@ -269,7 +266,7 @@ def play_game(screen: pygame.Surface, settings: GameSettings,
             log('Could not create cache directory {}. Caching disabled'.format(cfg.CACHE_DIR), LogLevel.ERROR)
             cfg.CACHE_ENABLED = False
 
-    screen.fill(Color(255, 255, 255))
+    screen.fill(cfg.BG_COLOR)
     builtin = [i for i, kind in enumerate(settings.players) if kind == BUILTIN_AI]
     board = core.BOARD = Board(screen, ai_players=builtin, ai_level=settings.level)
     for i, kind in enumerate(settings.players):
@@ -277,6 +274,7 @@ def play_game(screen: pygame.Surface, settings: GameSettings,
             board.pawns[i].AI = extra_players[kind](board, board.pawns[i])
             log('Player %i is moved by %s' % (i, kind), LogLevel.INFO)
 
+    board.player_labels = list(settings.players)
     board.draw()
     board.draw_players_info()
     log('Game started')
@@ -330,7 +328,7 @@ def main(extra_players: Optional[Dict[str, ControllerFactory]] = None) -> int:
     log('Initializing system...')
 
     pygame.init()
-    pygame.display.set_mode((800, 600))
+    pygame.display.set_mode(cfg.WINDOW_SIZE)
     pygame.display.set_caption(cfg.GAME_TITLE)
     screen = pygame.display.get_surface()
     log('System initialized OK')

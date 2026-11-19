@@ -64,8 +64,22 @@ class Cell(Drawable):
 
         self.board.get_cell(new_coord).path[cfg.OPPOSITE_DIRS[direction]] = value
 
+    @property
+    def fill_color(self):
+        """ Normal cells are grey; a player's goal row is tinted with that player's color """
+        for index, pawn in enumerate(self.board.pawns):
+            if pawn.goals and self.coord in pawn.goals:
+                return cfg.GOAL_TINTS[index]
+        return cfg.CELL_COLOR
+
     def draw(self):
-        Drawable.draw(self)
+        r = self.rect
+        pygame.draw.rect(self.screen, cfg.PANEL_COLOR, r)  # clears an old focus outline
+        legal = self.coord in self.board.highlighted
+        fill = cfg.CELL_HOVER_COLOR if (legal and self.has_focus) else self.fill_color
+        pygame.draw.rect(self.screen, fill, r, border_radius=cfg.CELL_RADIUS)
+        if legal:  # a square the human player can move to
+            pygame.draw.rect(self.screen, cfg.FOCUS_COLOR, r, width=2, border_radius=cfg.CELL_RADIUS)
         if self.pawn:
             self.pawn.draw()
 

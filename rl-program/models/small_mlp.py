@@ -32,6 +32,7 @@ class MLP(QuoridorModel):
         self.net = nn.Sequential(
             nn.Linear(size, hidden), nn.ReLU(),
             nn.Linear(hidden, hidden), nn.ReLU(),
+            nn.Linear(hidden, hidden), nn.ReLU(),
             nn.Linear(hidden, self.n_actions)
         )
 

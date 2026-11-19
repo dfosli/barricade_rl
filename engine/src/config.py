@@ -15,11 +15,18 @@ FRAMERATE = 25
 GAME_TITLE = 'Quoridor'
 DEFAULT_NUM_PLAYERS = 2
 
-# Cell size
-CELL_WIDTH = 50
-CELL_HEIGHT = 50
-CELL_PAD = 7
+# ---------------------------------------------------------------- Layout
+WINDOW_SIZE = (880, 600)
+BOARD_MARGIN = 12          # space between window edge and the board panel
+CELL_WIDTH = 48
+CELL_HEIGHT = 48
+CELL_PAD = 12              # gap between cells (walls are drawn in these gaps)
+CELL_RADIUS = 8            # rounded cell corners
 CELL_BORDER_SIZE = 2
+LABEL_SPACE = 24           # room for the a-i / 1-9 coordinate labels
+BOARD_RADIUS = 20          # rounded board panel corners
+WALL_INSET = 2             # walls are drawn slightly thinner/shorter than the gap
+SIDE_PANEL_GAP = 16        # space between the board and the player cards
 
 # Default Number of rows and cols
 DEF_ROWS = 9
@@ -28,49 +35,39 @@ DEF_COLS = 9
 # Number of Walls per player
 NUM_WALLS = 10
 
-### COLORS ###
-### REALISTIC QUORIDOR BOARD THEME ###
+# ---------------------------------------------------------------- Colors (dark theme)
+BG_COLOR = Color(12, 12, 12)                 # window background
+PANEL_COLOR = Color(26, 26, 26)              # board panel and player cards
+CELL_COLOR = Color(42, 42, 42)               # normal cell
+GOAL_TINTS = (Color(58, 42, 42),             # goal row of red  (top):    dark red tint
+              Color(37, 45, 60))             # goal row of blue (bottom): dark blue tint
+FOCUS_COLOR = Color(205, 205, 205)           # outline of cells you can move to
+CELL_HOVER_COLOR = Color(60, 60, 62)         # legal cell under the mouse
+LABEL_COLOR = Color(120, 125, 135)           # a-i / 1-9 labels
+TEXT_COLOR = Color(225, 225, 225)
+MUTED_TEXT_COLOR = Color(140, 140, 145)
+DEBUG_TEXT_COLOR = Color(110, 110, 115)      # A.I. distance numbers in debug mode
 
-# Font
-FONT_COLOR = Color(20, 20, 20)
-FONT_BG_COLOR = Color(245, 245, 245)
+PAWN_COLORS = (Color(239, 68, 68),           # red  (player 1, starts at the bottom)
+               Color(59, 130, 246))          # blue (player 2, starts at the top)
+WALL_COLORS = (Color(244, 163, 163),         # pastel red:  walls placed by red
+               Color(158, 197, 250))         # pastel blue: walls placed by blue
+WALL_PREVIEW_COLORS = (Color(120, 86, 86),   # hover preview before placing a wall
+                       Color(80, 100, 130))
+WALL_USED_COLOR = Color(55, 55, 58)          # used-up walls in the player cards
+PLAYER_NAMES = ('Red', 'Blue')
+
+# Kept for the engine's defaults
+WALL_COLOR = Color(160, 160, 160)
+FONT_COLOR = TEXT_COLOR
 FONT_SIZE = 16
-
-# Board Background & Border
-BOARD_BG_COLOR = Color(205, 170, 125)    # Light wood texture color
-BOARD_BRD_COLOR = Color(130, 100, 70)    # Darker wood edges
-BOARD_BRD_SIZE = 2
-
-# Cells (Grid)
-CELL_BORDER_COLOR = Color(110, 80, 55)   # Dark wood lines
-CELL_COLOR = Color(225, 195, 150)        # Smooth wooden cell color
-CELL_VALID_COLOR = Color(180, 150, 100)  # Slightly darker wood for valid tiles
-
-# Walls (Very similar to real Quoridor walls)
-WALL_COLOR = Color(110, 75, 45)          # Dark brown wooden block color
-
-# Pawns (Just like real Quoridor sets)
-PAWN_A_COL = Color(180, 30, 30)          # Classic red pawn
-PAWN_B_COL = Color(40, 60, 160)          # Classic blue pawn
-PAWN_BORDER_COL = Color(240, 220, 100)   # Slight gold/beige edge
-
-# Gauges (small wood-tone bars)
-GAUGE_WIDTH = CELL_WIDTH
-GAUGE_HEIGHT = 6
-GAUGE_COLOR = Color(160, 110, 60)        # Medium brown
-GAUGE_BORDER_COLOR = Color(60, 40, 20)
-
-# Padding
-PAWN_PADDING = 25
-                       # Balanced spacing
-
-
-
-# Other constants
-CELL_GLOW_COLOR = Color(0, 255, 255)
-PAWN_SELECTED_COLOR = Color(255, 0, 255)  # Magenta glow
-WALL_HIGHLIGHT_COLOR = Color(0, 255, 180)
-
+BOARD_BG_COLOR = PANEL_COLOR
+BOARD_BRD_COLOR = PANEL_COLOR
+BOARD_BRD_SIZE = 0
+CELL_BORDER_COLOR = CELL_COLOR
+CELL_VALID_COLOR = CELL_COLOR
+PAWN_A_COL, PAWN_B_COL = PAWN_COLORS
+PAWN_BORDER_COL = None
 
 
 class DIR:
@@ -106,7 +103,8 @@ MAX_LEVEL = 4
 
 # Paths are relative to the engine folder, so the game works from any working directory
 ENGINE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SOUND_MOVE = os.path.join(ENGINE_DIR, 'sound', 'chime.ogg')
+SOUND_MOVE = os.path.join(ENGINE_DIR, 'sound', 'move.wav')  # wooden click, like a chess move
+SOUND_VOLUME = 0.8  # 0.0 - 1.0
 
 # Cache
 CACHE_ENABLED = False

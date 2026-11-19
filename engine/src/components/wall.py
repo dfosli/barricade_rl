@@ -4,6 +4,7 @@ import pygame
 
 from .drawable import Drawable
 from .coord import Coord
+from .. import config as cfg
 from ..config import DIR, DIRS_DELTA
 
 
@@ -70,7 +71,8 @@ class Wall(Drawable):
         if self.color is None:
             return
 
-        pygame.draw.rect(self.screen, self.color, self.rect, 0)
+        r = self.rect.inflate(-2 * cfg.WALL_INSET, -2 * cfg.WALL_INSET)
+        pygame.draw.rect(self.screen, self.color, r, border_radius=r.height // 2 if self.horiz else r.width // 2)
 
     def collides(self, wall):
         """ Returns if the given wall collides with this one

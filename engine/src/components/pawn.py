@@ -79,8 +79,8 @@ class Pawn(Drawable):
         if r is None:
             r = self.rect
 
-        pygame.draw.ellipse(self.board.screen, self.color, r, 0)
-        pygame.draw.ellipse(self.board.screen, self.border_color, r, 2)
+        # Flat disc, a bit over half the cell wide
+        pygame.draw.circle(self.board.screen, self.color, r.center, int(min(r.width, r.height) * 0.27))
 
     @property
     def rect(self):
